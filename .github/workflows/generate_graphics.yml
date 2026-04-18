@@ -1,0 +1,47 @@
+name: Generate Sports Graphics
+
+on:
+  workflow_dispatch:
+    inputs:
+      input_file:
+        description: "Path to the picks data file (relative to repo root)"
+        required: false
+        default: "data/example_picks.json"
+  push:
+    branches:
+      - main
+    paths:
+      - "data/**"
+      - "scripts/**"
+      - "assets/**"
+      - "config/**"
+
+jobs:
+  generate-graphics:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate daily card
+        run: |
+          INPUT="${{ github.event.inputs.input_file || 'data/example_picks.json' }}"
+          python scripts/generate_daily_card.py --input "$INPUT"
+
+      - name: Upload generated graphics
+        uses: actions/upload-artifact@v4
+        with:
+          name: sports-graphics
+          path: output/
+          if-no-files-found: warn

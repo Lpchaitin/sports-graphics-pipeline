@@ -1,0 +1,30 @@
+{
+  "sport": "mlb",
+  "date": "2024-07-15",
+  "picks": [
+    {
+      "away_team": "Yankees",
+      "home_team": "Red Sox",
+      "pick": "Yankees +1.5",
+      "odds": "-110",
+      "edge": 3.5,
+      "confidence": "A"
+    },
+    {
+      "away_team": "Dodgers",
+      "home_team": "Giants",
+      "pick": "Dodgers ML",
+      "odds": "-130",
+      "edge": 2.1,
+      "confidence": "B+"
+    },
+    {
+      "away_team": "Cubs",
+      "home_team": "Cardinals",
+      "pick": "Under 8.5",
+      "odds": "-115",
+      "edge": 1.8,
+      "confidence": "B"
+    }
+  ]
+}
