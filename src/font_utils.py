@@ -5,7 +5,7 @@ Priority order:
 1. Oswald-Bold downloaded to assets/fonts/
 2. DejaVu Sans Condensed Bold (system)
 3. Liberation Sans Bold (system)
-4. DejaVu Sans Bold (system)
+4. Ubuntu Bold (system)
 5. PIL default (bitmap, last resort)
 """
 

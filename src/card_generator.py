@@ -1,7 +1,7 @@
 """
 MLB matchup card generator.
 
-Generates a 1000×900 px PNG card showing:
+Generates a 1000×840 px PNG card showing:
   - Top half: split logo panels (away | home) on team primary-color backgrounds
   - Bottom half: data table with TEAM / MONEY / O/U columns
   - Footer: label (e.g. "MLB 2026 | PREDICTIONS") and branding text
