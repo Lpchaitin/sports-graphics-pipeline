@@ -1,3 +1,15 @@
+# ── Sports Graphics Pipeline ──────────────────────────────────────────────────
+
+# Generated output images (keep examples/ committed instead)
+output/
+!output/.gitkeep
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# ── Python ─────────────────────────────────────────────────────────────────────
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]

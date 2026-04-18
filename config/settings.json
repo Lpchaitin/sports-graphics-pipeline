@@ -1,0 +1,28 @@
+{
+  "card": {
+    "width": 1080,
+    "height": 1080,
+    "background_color": [15, 15, 30],
+    "accent_color": [0, 200, 100]
+  },
+  "font": {
+    "family": "DejaVuSans",
+    "size_title": 52,
+    "size_body": 36,
+    "size_small": 26,
+    "color_primary": [255, 255, 255],
+    "color_secondary": [180, 180, 200],
+    "color_accent": [0, 200, 100]
+  },
+  "logo": {
+    "size": [120, 120],
+    "away_position": [100, 200],
+    "home_position": [860, 200]
+  },
+  "layout": {
+    "padding": 40,
+    "line_spacing": 10,
+    "divider_color": [50, 50, 80],
+    "divider_thickness": 2
+  }
+}

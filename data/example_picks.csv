@@ -1,0 +1,4 @@
+sport,date,away_team,home_team,pick,odds,edge,confidence
+mlb,2024-07-15,Yankees,Red Sox,Yankees +1.5,-110,3.5,A
+mlb,2024-07-15,Dodgers,Giants,Dodgers ML,-130,2.1,B+
+mlb,2024-07-15,Cubs,Cardinals,Under 8.5,-115,1.8,B
