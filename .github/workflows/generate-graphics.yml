@@ -1,0 +1,120 @@
+name: Generate MLB Graphics
+
+on:
+  push:
+    paths:
+      - 'incoming_picks/*.csv'
+  workflow_dispatch:
+    inputs:
+      csv_file:
+        description: 'CSV file to process (e.g., incoming_picks/picks.csv)'
+        required: false
+        default: 'incoming_picks/*.csv'
+
+jobs:
+  generate-graphics:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Find CSV files
+        id: find_csv
+        run: |
+          # Find all CSV files in incoming_picks directory
+          csv_files=$(ls incoming_picks/*.csv 2>/dev/null || echo "")
+          if [ -z "$csv_files" ]; then
+            echo "No CSV files found in incoming_picks/"
+            exit 1
+          fi
+          echo "Found CSV files: $csv_files"
+          echo "csv_files=$csv_files" >> $GITHUB_OUTPUT
+      
+      - name: Convert predictions format
+        run: |
+          # Convert each predictions file to graphics format
+          for csv_file in incoming_picks/*.csv; do
+            if [ -f "$csv_file" ]; then
+              echo "Converting $csv_file..."
+              
+              # Convert predictions to graphics format
+              python convert_predictions.py "$csv_file" --output "${csv_file%.csv}_converted.csv"
+              
+              echo "✓ Converted $csv_file"
+            fi
+          done
+      
+      - name: Generate graphics
+        run: |
+          # Process each converted CSV file
+          for csv_file in incoming_picks/*_converted.csv; do
+            if [ -f "$csv_file" ]; then
+              echo "Processing $csv_file..."
+              
+              # Generate graphics
+              python process_picks.py "$csv_file" \
+                --output-dir "output/mlb" \
+                --label "MLB $(date +%Y) | TODAY'S PICKS" \
+                --branding "ORBANALYTICS.SUBSTACK.COM"
+              
+              echo "✓ Generated graphics from $csv_file"
+            fi
+          done
+      
+      - name: Archive CSV (move to processed)
+        run: |
+          mkdir -p incoming_picks/processed
+          for csv_file in incoming_picks/*.csv; do
+            if [ -f "$csv_file" ]; then
+              # Skip already converted files
+              if [[ "$csv_file" == *"_converted.csv" ]]; then
+                rm "$csv_file"  # Remove converted files
+                continue
+              fi
+              
+              filename=$(basename "$csv_file")
+              timestamp=$(date +%Y%m%d_%H%M%S)
+              mv "$csv_file" "incoming_picks/processed/${timestamp}_${filename}"
+              echo "Archived $csv_file"
+            fi
+          done
+      
+      - name: Commit generated graphics
+        run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "actions@github.com"
+          
+          # Add generated graphics
+          git add output/mlb/
+          git add incoming_picks/processed/
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No new graphics to commit"
+          else
+            git commit -m "Generated MLB graphics for $(date +%Y-%m-%d)"
+            git push
+            echo "✓ Committed and pushed graphics"
+          fi
+      
+      - name: Summary
+        run: |
+          echo "## Graphics Generation Complete! 🎨" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Generated graphics saved to \`output/mlb/\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Files Generated:" >> $GITHUB_STEP_SUMMARY
+          ls -lh output/mlb/*.png 2>/dev/null | tail -n +2 | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No graphics found" >> $GITHUB_STEP_SUMMARY

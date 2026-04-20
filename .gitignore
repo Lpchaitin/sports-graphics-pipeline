@@ -211,3 +211,16 @@ assets/fonts/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Converted prediction files (temporary)
+converted_*.csv
+*_converted.csv
+
+# Test prediction files
+predictions_*.csv
+test_picks.csv
+
+# Keep incoming_picks structure but ignore CSVs by default
+# (workflows will commit them as needed)
+incoming_picks/*.csv
+!incoming_picks/.gitkeep

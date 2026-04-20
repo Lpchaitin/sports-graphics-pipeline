@@ -1,7 +1,7 @@
 """
 MLB matchup card generator.
 
-Generates a 1000×840 px PNG card showing:
+Generates a 1080×1350 px PNG card (4:5 Instagram ratio) showing:
   - Top half: split logo panels (away | home) on team primary-color backgrounds
   - Bottom half: data table with TEAM / MONEY / O/U columns
   - Footer: label (e.g. "MLB 2026 | PREDICTIONS") and branding text
@@ -41,12 +41,12 @@ from src.font_utils import get_font
 from src.team_data import get_team
 
 # ---------------------------------------------------------------------------
-# Card dimensions
+# Card dimensions (4:5 ratio for Instagram)
 # ---------------------------------------------------------------------------
-CARD_WIDTH = 1000
-LOGO_HEIGHT = 460
-DATA_HEIGHT = 380
-CARD_HEIGHT = LOGO_HEIGHT + DATA_HEIGHT
+CARD_WIDTH = 1080
+LOGO_HEIGHT = 720
+DATA_HEIGHT = 630
+CARD_HEIGHT = LOGO_HEIGHT + DATA_HEIGHT  # = 1350
 
 # ---------------------------------------------------------------------------
 # Colour palette
@@ -61,7 +61,7 @@ DARK_GRAY = (55, 55, 65)       # inactive cell borders
 TEAM_BOX_COLOR = (255, 255, 255)   # team name box border / text
 
 BORDER_WIDTH = 3               # px — box stroke thickness
-LOGO_PADDING = 40              # px — padding around logo inside its panel
+LOGO_PADDING = 60              # px — padding around logo inside its panel
 
 # ---------------------------------------------------------------------------
 # Data model
@@ -93,7 +93,7 @@ _LOGO_CACHE: dict[str, Image.Image | None] = {}
 
 
 def _fetch_logo(abbr: str) -> Image.Image | None:
-    """Download team logo PNG from ESPN CDN; returns RGBA Image or None."""
+    """Load team logo PNG from local assets; returns RGBA Image or None."""
     if abbr in _LOGO_CACHE:
         return _LOGO_CACHE[abbr]
 
@@ -102,13 +102,26 @@ def _fetch_logo(abbr: str) -> Image.Image | None:
         _LOGO_CACHE[abbr] = None
         return None
 
-    url = f"https://a.espncdn.com/i/teamlogos/mlb/500/{team['espn_abbr']}.png"
+    # Use local logo with white outline
+    import os
+    logo_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "assets", "mlb", f"{team['espn_abbr']}.png"
+    )
+    
     try:
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
-        _LOGO_CACHE[abbr] = img
-        return img
+        if os.path.exists(logo_path):
+            img = Image.open(logo_path).convert("RGBA")
+            _LOGO_CACHE[abbr] = img
+            return img
+        else:
+            # Fallback to ESPN if local doesn't exist
+            url = f"https://a.espncdn.com/i/teamlogos/mlb/500/{team['espn_abbr']}.png"
+            resp = requests.get(url, timeout=10)
+            resp.raise_for_status()
+            img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
+            _LOGO_CACHE[abbr] = img
+            return img
     except Exception:
         _LOGO_CACHE[abbr] = None
         return None
@@ -123,7 +136,7 @@ def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
     return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
 
 
-def _darken(rgb: tuple[int, int, int], factor: float = 0.55) -> tuple[int, int, int]:
+def _darken(rgb: tuple[int, int, int], factor: float = 0.75) -> tuple[int, int, int]:
     """Return a darkened version of *rgb* for the panel background."""
     return tuple(int(c * factor) for c in rgb)  # type: ignore[return-value]
 
@@ -275,18 +288,18 @@ def _draw_data_section(
     col3_x1 = CARD_WIDTH - margin          # let last column absorb rounding
 
     # ---- vertical geometry ---------------------------------------------
-    header_top = data_top + 18
-    header_h = 36
-    row_h = 82
-    row_gap = 12
-    row1_top = header_top + header_h + 14
+    header_top = data_top + 60
+    header_h = 60
+    row_h = 145
+    row_gap = 35
+    row1_top = header_top + header_h + 35
     row2_top = row1_top + row_h + row_gap
-    footer_y = row2_top + row_h + 18
+    footer_y = row2_top + row_h + 60
 
     # ---- fonts ---------------------------------------------------------
-    header_font = get_font(28)
-    cell_font = get_font(30)
-    footer_font = get_font(20)
+    header_font = get_font(36)
+    cell_font = get_font(42)
+    footer_font = get_font(24)
 
     # ---- column headers ------------------------------------------------
     headers = ["TEAM", "MONEY", "O/U"]
@@ -401,7 +414,9 @@ def _draw_data_section(
 
 def generate_card(card: CardData) -> Image.Image:
     """
-    Render an MLB matchup card and return it as a PIL Image (RGB, 1000×840).
+    Render an MLB matchup card and return it as a PIL Image (RGB, 1080×1350).
+    
+    Instagram-compatible 4:5 aspect ratio.
 
     Parameters
     ----------

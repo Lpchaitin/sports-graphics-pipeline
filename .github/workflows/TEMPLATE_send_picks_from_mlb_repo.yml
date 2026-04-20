@@ -1,0 +1,92 @@
+name: Send Picks to Graphics Pipeline
+
+# This workflow sends your model's picks CSV to the graphics pipeline repo
+# Trigger: When picks CSV is generated or manually dispatched
+
+on:
+  push:
+    paths:
+      - 'modeling/mlb_xgb_ml/predictions/predictions_*.csv'  # Triggers when predictions CSV is committed
+  workflow_dispatch:
+    inputs:
+      picks_file:
+        description: 'CSV file with picks to send (relative to repo root)'
+        required: false
+        default: 'modeling/mlb_xgb_ml/predictions/predictions_2026-04-19.csv'
+
+jobs:
+  send-picks:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout MLB repo
+        uses: actions/checkout@v4
+      
+      - name: Checkout graphics pipeline repo
+        uses: actions/checkout@v4
+        with:
+          repository: Lpchaitin/sports-graphics-pipeline  # Your graphics repo
+          token: ${{ secrets.GRAPHICS_REPO_TOKEN }}  # PAT with repo access
+          path: graphics-pipeline
+      
+      - name: Copy picks to graphics repo
+        run: |
+          # Create incoming_picks directory if it doesn't exist
+          mkdir -p graphics-pipeline/incoming_picks
+          
+          # Determine picks file location (use input or default to latest predictions file)
+          PICKS_FILE="${{ github.event.inputs.picks_file }}"
+          
+          if [ -z "$PICKS_FILE" ]; then
+            # If no input provided, use the latest predictions_*.csv file
+            PICKS_FILE=$(ls -t modeling/mlb_xgb_ml/predictions/predictions_*.csv 2>/dev/null | head -1)
+          fi
+          
+          if [ ! -f "$PICKS_FILE" ]; then
+            echo "Error: Picks file not found: $PICKS_FILE"
+            exit 1
+          fi
+          
+          echo "Using predictions file: $PICKS_FILE"
+          
+          # Generate filename with timestamp
+          TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+          FILENAME=$(basename "$PICKS_FILE")
+          DEST_FILE="graphics-pipeline/incoming_picks/${TIMESTAMP}_${FILENAME}"
+          
+          # Copy the picks file
+          cp "$PICKS_FILE" "$DEST_FILE"
+          
+          echo "✓ Copied $PICKS_FILE to $DEST_FILE"
+      
+      - name: Commit and push to graphics repo
+        working-directory: graphics-pipeline
+        run: |
+          git config user.name "MLB Model Bot"
+          git config user.email "mlb-model-bot@users.noreply.github.com"
+          
+          git add incoming_picks/*.csv
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add MLB picks for $(date +%Y-%m-%d)"
+            git push
+            echo "✓ Picks pushed to graphics pipeline repo"
+          fi
+      
+      - name: Wait for graphics generation
+        run: |
+          echo "Picks sent to graphics pipeline!"
+          echo "Graphics will be generated automatically."
+          echo "Check: https://github.com/Lpchaitin/sports-graphics-pipeline/actions"
+      
+      - name: Summary
+        run: |
+          echo "## Picks Sent Successfully! 📊" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Your picks have been sent to the graphics pipeline repository." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Graphics generation will start automatically." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "View progress: [Graphics Pipeline Actions](https://github.com/Lpchaitin/sports-graphics-pipeline/actions)" >> $GITHUB_STEP_SUMMARY
