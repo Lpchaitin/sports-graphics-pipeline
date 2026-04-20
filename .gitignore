@@ -220,7 +220,5 @@ converted_*.csv
 predictions_*.csv
 test_picks.csv
 
-# Keep incoming_picks structure but ignore CSVs by default
-# (workflows will commit them as needed)
-incoming_picks/*.csv
-!incoming_picks/.gitkeep
+# incoming_picks CSVs are committed by workflow to trigger graphics generation
+# They get archived to processed/ folder after processing
