@@ -5,23 +5,87 @@ on:
     workflows: ["Generate MLB Graphics"]
     types:
       - completed
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Date of graphics to send (YYYYMMDD format, e.g., 20260419)'
+        required: true
+        type: string
 
 jobs:
   email-graphics:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
       
+      - name: Find artifact for manual trigger
+        if: github.event_name == 'workflow_dispatch'
+        id: find_artifact
+        run: |
+          DATE_INPUT="${{ inputs.date }}"
+          echo "Looking for artifacts containing graphics from date: $DATE_INPUT"
+          
+          # Find recent successful workflow runs and check their artifacts
+          FOUND=false
+          for RUN_ID in $(gh run list --workflow="Generate MLB Graphics" --json databaseId,status,conclusion --limit 50 | \
+            jq -r '.[] | select(.conclusion=="success") | .databaseId'); do
+            
+            echo "Checking run ID: $RUN_ID"
+            
+            # Get artifact info
+            ARTIFACTS=$(gh run view $RUN_ID --json artifacts --jq '.artifacts[] | .name')
+            
+            if [ -n "$ARTIFACTS" ]; then
+              for ARTIFACT in $ARTIFACTS; do
+                echo "Found artifact: $ARTIFACT in run $RUN_ID"
+                # We'll download and check the files
+                echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+                echo "artifact_name=$ARTIFACT" >> $GITHUB_OUTPUT
+                FOUND=true
+                break 2
+              done
+            fi
+          done
+          
+          if [ "$FOUND" = false ]; then
+            echo "Error: No artifacts found"
+            exit 1
+          fi
+          
+          echo "Will use run ID: $RUN_ID with artifact: $ARTIFACT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Download artifact from graphics workflow
         uses: actions/download-artifact@v4
         with:
-          name: mlb-graphics-${{ github.event.workflow_run.run_number }}
+          name: ${{ github.event_name == 'workflow_dispatch' && steps.find_artifact.outputs.artifact_name || format('mlb-graphics-{0}', github.event.workflow_run.run_number) }}
           path: graphics-to-email
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ github.event_name == 'workflow_dispatch' && steps.find_artifact.outputs.run_id || github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Filter graphics by date (manual trigger only)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          DATE_INPUT="${{ inputs.date }}"
+          echo "Filtering graphics for date: $DATE_INPUT"
+          
+          cd graphics-to-email
+          # Keep only files that start with the requested date
+          find . -name "*.png" ! -name "${DATE_INPUT}_*.png" -delete
+          
+          # Check if any files remain
+          COUNT=$(ls *.png 2>/dev/null | wc -l)
+          if [ "$COUNT" -eq 0 ]; then
+            echo "Error: No graphics found for date $DATE_INPUT"
+            exit 1
+          fi
+          
+          echo "Found $COUNT graphics for requested date"
+          ls -lh
       
       - name: List downloaded graphics
         id: list_graphics
@@ -86,7 +150,7 @@ jobs:
             </div>
             <div class="footer">
               <p>Automated by MLB Graphics Pipeline | Generated via GitHub Actions</p>
-              <p>View workflow: <a href="${{ github.event.workflow_run.html_url }}">${{ github.event.workflow_run.html_url }}</a></p>
+              <p>Trigger: ${{ github.event_name == 'workflow_dispatch' && 'Manual' || 'Automatic' }}</p>
             </div>
           </body>
           </html>
@@ -99,7 +163,7 @@ jobs:
           server_port: 587
           username: ${{ secrets.GMAIL_USERNAME }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: "MLB Graphics Ready - ${{ steps.list_graphics.outputs.date }} (${{ steps.list_graphics.outputs.count }} games)"
+          subject: "${{ github.event_name == 'workflow_dispatch' && '[MANUAL] ' || '' }}MLB Graphics Ready - ${{ steps.list_graphics.outputs.date }} (${{ steps.list_graphics.outputs.count }} games)"
           to: ${{ secrets.EMAIL_RECIPIENT }}
           from: ${{ secrets.GMAIL_USERNAME }}
           html_body: file://email-body.html
@@ -113,3 +177,5 @@ jobs:
           echo "✅ Sent ${{ steps.list_graphics.outputs.count }} graphics to: ${{ secrets.EMAIL_RECIPIENT }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📅 Date: ${{ steps.list_graphics.outputs.date }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔄 Trigger: ${{ github.event_name == 'workflow_dispatch' && 'Manual (workflow_dispatch)' || 'Automatic (after graphics generation)' }}" >> $GITHUB_STEP_SUMMARY
