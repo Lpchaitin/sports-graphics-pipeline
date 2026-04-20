@@ -54,7 +54,7 @@ CARD_HEIGHT = LOGO_HEIGHT + DATA_HEIGHT  # = 1350
 BG_COLOR = (18, 18, 28)        # near-black navy
 DIVIDER_COLOR = (35, 35, 50)   # subtle column separator
 WHITE = (255, 255, 255)
-GREEN = (57, 255, 20)          # neon green  #39FF14
+PURPLE = (147, 51, 234)        # vibrant purple  #9333EA
 RED = (255, 60, 60)            # bright red
 GRAY = (130, 130, 140)         # inactive cells
 DARK_GRAY = (55, 55, 65)       # inactive cell borders
@@ -229,22 +229,22 @@ def _pick_colors(
     Return (border_color, text_color) for a data cell.
 
     - Non-pick cells: gray border, gray text.
-    - Prediction cards: pick cells get green (indicating the prediction).
-    - Results cards: pick correct → green, pick incorrect → red.
+    - Prediction cards: pick cells get purple (indicating the prediction).
+    - Results cards: pick correct → purple, pick incorrect → red.
     """
     if not is_pick:
         return DARK_GRAY, GRAY
 
     if card_type == "prediction":
-        return GREEN, GREEN
+        return PURPLE, PURPLE
 
     # Results card
     if result == "correct":
-        return GREEN, GREEN
+        return PURPLE, PURPLE
     if result == "incorrect":
         return RED, RED
     # Pick was made but result unknown
-    return GREEN, GREEN
+    return PURPLE, PURPLE
 
 
 def _draw_data_cell(
