@@ -92,29 +92,41 @@ jobs:
             fi
           done
       
-      - name: Commit generated graphics
+      - name: Upload graphics as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlb-graphics-${{ github.run_number }}
+          path: output/mlb/*.png
+          retention-days: 90
+          if-no-files-found: warn
+      
+      - name: Commit processed CSVs (archive only)
         run: |
           git config user.name "GitHub Actions Bot"
           git config user.email "actions@github.com"
           
-          # Add generated graphics
-          git add output/mlb/
+          # Only commit archived CSVs, not graphics (graphics in artifacts)
           git add incoming_picks/processed/
           
           # Check if there are changes to commit
           if git diff --staged --quiet; then
-            echo "No new graphics to commit"
+            echo "No CSVs to archive"
           else
-            git commit -m "Generated MLB graphics for $(date +%Y-%m-%d)"
+            git commit -m "Archive processed predictions for $(date +%Y-%m-%d)"
             git push
-            echo "✓ Committed and pushed graphics"
+            echo "✓ Archived processed CSVs"
           fi
       
       - name: Summary
         run: |
           echo "## Graphics Generation Complete! 🎨" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Generated graphics saved to \`output/mlb/\`" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Graphics generated successfully!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Files Generated:" >> $GITHUB_STEP_SUMMARY
+          echo "### 📥 Download Graphics:" >> $GITHUB_STEP_SUMMARY
+          echo "Scroll down to **Artifacts** section below and download **mlb-graphics-${{ github.run_number }}.zip**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Files Generated:" >> $GITHUB_STEP_SUMMARY
           ls -lh output/mlb/*.png 2>/dev/null | tail -n +2 | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No graphics found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "💡 Graphics are available as artifacts for 90 days (not committed to repo)" >> $GITHUB_STEP_SUMMARY
