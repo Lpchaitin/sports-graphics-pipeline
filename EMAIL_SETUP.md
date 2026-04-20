@@ -91,6 +91,24 @@ git push
 3. Click **"Re-run all jobs"**
 4. Email workflow should trigger after completion
 
+### Option C: Send Specific Date Manually 🎯 NEW!
+
+Want to resend graphics for a specific date? Use the manual trigger:
+
+1. Go to: https://github.com/Lpchaitin/sports-graphics-pipeline/actions/workflows/email-graphics.yml
+2. Click **"Run workflow"** (top right)
+3. Enter the date in YYYYMMDD format (e.g., `20260419`)
+4. Click **"Run workflow"**
+5. Email will be sent with graphics from that date!
+
+**When to use this:**
+- Resend graphics to someone new
+- Forward a specific date's picks
+- Re-deliver if original email was missed
+- Archive or backup specific date's graphics
+
+**Subject will show:** `[MANUAL] MLB Graphics Ready - 20260419 (6 games)`
+
 ---
 
 ## 📧 What the Email Looks Like
