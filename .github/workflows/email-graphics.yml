@@ -1,8 +1,5 @@
 name: Email Graphics After Generation
 
-# This workflow runs after graphics are generated and emails them
-# Triggers: After "Generate MLB Graphics" workflow completes successfully
-
 on:
   workflow_run:
     workflows: ["Generate MLB Graphics"]
