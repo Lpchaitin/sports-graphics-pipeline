@@ -28,20 +28,23 @@ jobs:
           DATE_INPUT="${{ inputs.date }}"
           echo "Looking for artifacts containing graphics from date: $DATE_INPUT"
           
-          # Find recent successful workflow runs and check their artifacts
+          # Find recent successful workflow runs with artifacts using GitHub API
           FOUND=false
-          for RUN_ID in $(gh run list --workflow="Generate MLB Graphics" --json databaseId,status,conclusion --limit 50 | \
-            jq -r '.[] | select(.conclusion=="success") | .databaseId'); do
+          
+          for RUN_DATA in $(gh run list --workflow="Generate MLB Graphics" --json databaseId,number,conclusion --limit 50 | \
+            jq -c '.[] | select(.conclusion=="success")'); do
             
-            echo "Checking run ID: $RUN_ID"
+            RUN_ID=$(echo "$RUN_DATA" | jq -r '.databaseId')
+            RUN_NUMBER=$(echo "$RUN_DATA" | jq -r '.number')
             
-            # Get artifact info
-            ARTIFACTS=$(gh run view $RUN_ID --json artifacts --jq '.artifacts[] | .name')
+            echo "Checking run ID: $RUN_ID (run #$RUN_NUMBER)"
+            
+            # Use GitHub API to list artifacts for this run
+            ARTIFACTS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts --jq '.artifacts[] | select(.name | startswith("mlb-graphics")) | .name')
             
             if [ -n "$ARTIFACTS" ]; then
               for ARTIFACT in $ARTIFACTS; do
                 echo "Found artifact: $ARTIFACT in run $RUN_ID"
-                # We'll download and check the files
                 echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
                 echo "artifact_name=$ARTIFACT" >> $GITHUB_OUTPUT
                 FOUND=true
@@ -51,11 +54,12 @@ jobs:
           done
           
           if [ "$FOUND" = false ]; then
-            echo "Error: No artifacts found"
+            echo "Error: No artifacts found in recent workflow runs"
+            echo "Make sure graphics have been generated at least once"
             exit 1
           fi
           
-          echo "Will use run ID: $RUN_ID with artifact: $ARTIFACT"
+          echo "Will download artifact: $ARTIFACT from run: $RUN_ID"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
