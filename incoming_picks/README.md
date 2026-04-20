@@ -13,10 +13,14 @@ This directory receives CSV files from your MLB model repository via GitHub Acti
 
 ```
 incoming_picks/
-├── picks_YYYYMMDD_HHMMSS.csv    # Incoming picks (auto-processed)
-└── processed/                    # Archived picks after graphics generated
-    └── YYYYMMDD_HHMMSS_picks_*.csv
+├── YYYYMMDD_predictions.csv      # Incoming picks (auto-processed)
+└── processed/                     # Archived picks after graphics generated
+    └── YYYYMMDD_predictions.csv
 ```
+
+**Filename Format:** `YYYYMMDD_predictions.csv`
+- Date comes from the original predictions filename (e.g., `predictions_2026-04-19.csv` → `20260419_predictions.csv`)
+- Not the transfer date, but the predictions date
 
 ## CSV Format
 
