@@ -7,6 +7,7 @@ Automated pipeline for generating professional sports prediction graphics from m
 ## 📊 Features
 
 ✅ **Automatic Graphics Generation** - GitHub Actions workflow generates graphics when predictions are committed  
+✅ **Email Notifications** - Automatically emails graphics when generated (Gmail integration)  
 ✅ **Team Colors & Logos** - 30 MLB team logos with white outlines, primary color backgrounds  
 ✅ **Instagram-Optimized** - 1080×1350 (4:5 ratio) perfect for social media  
 ✅ **Smart Pick Highlighting** - Green borders on your picks, gray on non-picks  
@@ -37,6 +38,8 @@ MLB-Model/predictions_2026-04-19.csv
 graphics-pipeline/incoming_picks/
     ↓ (Auto-converts & generates)
 graphics-pipeline/output/mlb/*.png
+    ↓ (Email workflow)
+📧 Graphics emailed to you!
 ```
 
 See **[INTEGRATION.md](INTEGRATION.md)** for all integration methods.
@@ -44,6 +47,7 @@ See **[INTEGRATION.md](INTEGRATION.md)** for all integration methods.
 ## 📖 Documentation
 
 - **[QUICKSTART.md](QUICKSTART.md)** - Set up GitHub Actions in 10 minutes
+- **[EMAIL_SETUP.md](EMAIL_SETUP.md)** - Configure Gmail email notifications 📧
 - **[ORGANIZATION.md](ORGANIZATION.md)** - Keep the repo clean and organized ⭐
 - **[USAGE.md](USAGE.md)** - How to use with your predictions format
 - **[INTEGRATION.md](INTEGRATION.md)** - Multiple integration methods

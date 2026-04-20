@@ -1,0 +1,118 @@
+name: Email Graphics After Generation
+
+# This workflow runs after graphics are generated and emails them
+# Triggers: After "Generate MLB Graphics" workflow completes successfully
+
+on:
+  workflow_run:
+    workflows: ["Generate MLB Graphics"]
+    types:
+      - completed
+
+jobs:
+  email-graphics:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Download artifact from graphics workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: mlb-graphics-${{ github.event.workflow_run.run_number }}
+          path: graphics-to-email
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: List downloaded graphics
+        id: list_graphics
+        run: |
+          echo "Graphics downloaded:"
+          ls -lh graphics-to-email/
+          
+          # Count graphics
+          COUNT=$(ls graphics-to-email/*.png 2>/dev/null | wc -l)
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          
+          # Get date from first filename
+          FIRST_FILE=$(ls graphics-to-email/*.png 2>/dev/null | head -1 | xargs basename)
+          DATE_STR=$(echo $FIRST_FILE | cut -d'_' -f1)
+          echo "date=$DATE_STR" >> $GITHUB_OUTPUT
+      
+      - name: Create email body
+        run: |
+          cat > email-body.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .header { background-color: #0E3386; color: white; padding: 20px; text-align: center; }
+              .content { padding: 20px; }
+              .footer { background-color: #f4f4f4; padding: 10px; text-align: center; font-size: 12px; color: #666; }
+              .stats { background-color: #f9f9f9; padding: 15px; border-left: 4px solid #0E3386; margin: 20px 0; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>🎨 MLB Graphics Ready!</h1>
+            </div>
+            <div class="content">
+              <h2>Today's Picks Graphics Generated</h2>
+              <p>Your MLB prediction graphics for <strong>${{ steps.list_graphics.outputs.date }}</strong> have been generated successfully!</p>
+              
+              <div class="stats">
+                <strong>📊 Summary:</strong><br>
+                ✅ Graphics Generated: ${{ steps.list_graphics.outputs.count }}<br>
+                📅 Date: ${{ steps.list_graphics.outputs.date }}<br>
+                🎯 Only games with confident picks included<br>
+              </div>
+              
+              <p><strong>Attached Files:</strong></p>
+              <ul>
+                <li>All PNG graphics (1080×1350, Instagram-ready)</li>
+                <li>Team colors and white-outlined logos included</li>
+                <li>Moneyline picks highlighted in green</li>
+              </ul>
+              
+              <p><strong>Next Steps:</strong></p>
+              <ol>
+                <li>Download the attached PNG files</li>
+                <li>Review the picks and graphics</li>
+                <li>Post to social media (Instagram, Twitter, etc.)</li>
+                <li>Share on Substack or your website</li>
+              </ol>
+              
+              <p>Graphics are automatically generated from your model's predictions where <code>pick_made? = 1</code>.</p>
+            </div>
+            <div class="footer">
+              <p>Automated by MLB Graphics Pipeline | Generated via GitHub Actions</p>
+              <p>View workflow: <a href="${{ github.event.workflow_run.html_url }}">${{ github.event.workflow_run.html_url }}</a></p>
+            </div>
+          </body>
+          </html>
+          EOF
+      
+      - name: Send email with graphics
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.GMAIL_USERNAME }}
+          password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          subject: "MLB Graphics Ready - ${{ steps.list_graphics.outputs.date }} (${{ steps.list_graphics.outputs.count }} games)"
+          to: ${{ secrets.EMAIL_RECIPIENT }}
+          from: ${{ secrets.GMAIL_USERNAME }}
+          html_body: file://email-body.html
+          attachments: graphics-to-email/*.png
+          priority: normal
+      
+      - name: Summary
+        run: |
+          echo "## Email Sent Successfully! 📧" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Sent ${{ steps.list_graphics.outputs.count }} graphics to: ${{ secrets.EMAIL_RECIPIENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📅 Date: ${{ steps.list_graphics.outputs.date }}" >> $GITHUB_STEP_SUMMARY
