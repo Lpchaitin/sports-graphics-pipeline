@@ -7,9 +7,9 @@ on:
       - completed
   workflow_dispatch:
     inputs:
-      date:
-        description: 'Date of graphics to send (YYYYMMDD format, e.g., 20260419)'
-        required: true
+      run_number:
+        description: 'Workflow run number to email (leave blank for most recent)'
+        required: false
         type: string
 
 jobs:
@@ -21,49 +21,78 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       
-      - name: Find artifact for manual trigger
+      - name: Find workflow run for manual trigger
         if: github.event_name == 'workflow_dispatch'
-        id: find_artifact
+        id: find_run
         run: |
-          DATE_INPUT="${{ inputs.date }}"
-          echo "Looking for artifacts containing graphics from date: $DATE_INPUT"
+          RUN_INPUT="${{ inputs.run_number }}"
           
-          # Find recent successful workflow runs with artifacts using GitHub API
-          FOUND=false
-          
-          for RUN_DATA in $(gh run list --workflow="Generate MLB Graphics" --json databaseId,number,conclusion --limit 50 | \
-            jq -c '.[] | select(.conclusion=="success")'); do
+          if [ -z "$RUN_INPUT" ]; then
+            echo "No run number provided, finding most recent successful run..."
             
-            RUN_ID=$(echo "$RUN_DATA" | jq -r '.databaseId')
-            RUN_NUMBER=$(echo "$RUN_DATA" | jq -r '.number')
+            # Find the most recent successful "Generate MLB Graphics" run
+            RUN_DATA=$(gh run list --workflow="Generate MLB Graphics" \
+              --json databaseId,number,conclusion,status \
+              --limit 10 | \
+              jq -r '.[] | select(.conclusion=="success") | "\(.databaseId),\(.number)"' | \
+              head -1)
             
-            echo "Checking run ID: $RUN_ID (run #$RUN_NUMBER)"
-            
-            # Use GitHub API to list artifacts for this run
-            ARTIFACTS=$(gh api repos/${{ github.repository }}/actions/runs/$RUN_ID/artifacts --jq '.artifacts[] | select(.name | startswith("mlb-graphics")) | .name')
-            
-            if [ -n "$ARTIFACTS" ]; then
-              for ARTIFACT in $ARTIFACTS; do
-                echo "Found artifact: $ARTIFACT in run $RUN_ID"
-                echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-                echo "artifact_name=$ARTIFACT" >> $GITHUB_OUTPUT
-                FOUND=true
-                break 2
-              done
+            if [ -z "$RUN_DATA" ]; then
+              echo "Error: No successful workflow runs found"
+              exit 1
             fi
-          done
-          
-          if [ "$FOUND" = false ]; then
-            echo "Error: No artifacts found in recent workflow runs"
-            echo "Make sure graphics have been generated at least once"
-            exit 1
+            
+            RUN_ID=$(echo "$RUN_DATA" | cut -d',' -f1)
+            RUN_NUMBER=$(echo "$RUN_DATA" | cut -d',' -f2)
+            
+            echo "Found most recent successful run: #$RUN_NUMBER (ID: $RUN_ID)"
+          else
+            echo "Using specified run number: $RUN_INPUT"
+            
+            # Find the run by number
+            RUN_DATA=$(gh run list --workflow="Generate MLB Graphics" \
+              --json databaseId,number,conclusion \
+              --limit 100 | \
+              jq -r ".[] | select(.number==$RUN_INPUT) | \"\(.databaseId),\(.number)\"")
+            
+            if [ -z "$RUN_DATA" ]; then
+              echo "Error: No workflow run found with number $RUN_INPUT"
+              exit 1
+            fi
+            
+            RUN_ID=$(echo "$RUN_DATA" | cut -d',' -f1)
+            RUN_NUMBER=$(echo "$RUN_DATA" | cut -d',' -f2)
+            
+            echo "Found run #$RUN_NUMBER (ID: $RUN_ID)"
           fi
           
-          echo "Will download artifact: $ARTIFACT from run: $RUN_ID"
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "run_number=$RUN_NUMBER" >> $GITHUB_OUTPUT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Download prediction graphics
+      - name: Download prediction graphics (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v4
+        with:
+          name: mlb-predictions-${{ steps.find_run.outputs.run_number }}
+          path: graphics-to-email/predictions
+          run-id: ${{ steps.find_run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+      
+      - name: Download results graphics (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v4
+        with:
+          name: mlb-results-${{ steps.find_run.outputs.run_number }}
+          path: graphics-to-email/results
+          run-id: ${{ steps.find_run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+      
+      - name: Download prediction graphics (automatic)
+        if: github.event_name != 'workflow_dispatch'
         uses: actions/download-artifact@v4
         with:
           name: ${{ format('mlb-predictions-{0}', github.event.workflow_run.run_number) }}
@@ -72,7 +101,8 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
       
-      - name: Download results graphics
+      - name: Download results graphics (automatic)
+        if: github.event_name != 'workflow_dispatch'
         uses: actions/download-artifact@v4
         with:
           name: ${{ format('mlb-results-{0}', github.event.workflow_run.run_number) }}
@@ -81,16 +111,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
       
-      - name: Filter graphics by date (manual trigger only)
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          DATE_INPUT="${{ inputs.date }}"
-          echo "Manual trigger not yet updated for new artifact structure"
-          echo "TODO: Update manual trigger logic"
-          exit 1
-      
       - name: List downloaded graphics
-        if: github.event_name != 'workflow_dispatch'
         id: list_graphics
         run: |
           echo "Graphics downloaded:"
@@ -106,6 +127,12 @@ jobs:
           ls -lh graphics-to-email/results/ 2>/dev/null || echo "No results"
           
           TOTAL=$((PRED_COUNT + RES_COUNT))
+          
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "Error: No graphics found to email"
+            exit 1
+          fi
+          
           echo "count=$TOTAL" >> $GITHUB_OUTPUT
           echo "pred_count=$PRED_COUNT" >> $GITHUB_OUTPUT
           echo "res_count=$RES_COUNT" >> $GITHUB_OUTPUT
@@ -118,11 +145,19 @@ jobs:
           else
             echo "date=unknown" >> $GITHUB_OUTPUT
           fi
+          
+          # Store run number for summary
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "run_num=${{ steps.find_run.outputs.run_number }}" >> $GITHUB_OUTPUT
+          else
+            echo "run_num=${{ github.event.workflow_run.run_number }}" >> $GITHUB_OUTPUT
+          fi
       
       - name: Create email body
-        if: github.event_name != 'workflow_dispatch'
         run: |
-          cat > email-body.html << 'EOF'
+          TRIGGER_TYPE="${{ github.event_name == 'workflow_dispatch' && 'Manual' || 'Automatic' }}"
+          
+          cat > email-body.html << EOF
           <!DOCTYPE html>
           <html>
           <head>
@@ -147,6 +182,8 @@ jobs:
                 <strong>🟣 Predictions:</strong> ${{ steps.list_graphics.outputs.pred_count }} graphics (today's picks)<br>
                 <strong>🎯 Results:</strong> ${{ steps.list_graphics.outputs.res_count }} graphics (yesterday's outcomes)<br>
                 <strong>📈 Total:</strong> ${{ steps.list_graphics.outputs.count }} graphics<br>
+                <strong>🔄 Trigger:</strong> $TRIGGER_TYPE<br>
+                <strong>📍 Run:</strong> #${{ steps.list_graphics.outputs.run_num }}
               </div>
               
               <p><strong>🟣 Prediction Graphics (Purple):</strong></p>
@@ -185,14 +222,13 @@ jobs:
           EOF
       
       - name: Send email with graphics
-        if: github.event_name != 'workflow_dispatch'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.GMAIL_USERNAME }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: "MLB Graphics Ready - ${{ steps.list_graphics.outputs.date }} (${{ steps.list_graphics.outputs.pred_count }} predictions, ${{ steps.list_graphics.outputs.res_count }} results)"
+          subject: "${{ github.event_name == 'workflow_dispatch' && '[MANUAL] ' || '' }}MLB Graphics Ready - ${{ steps.list_graphics.outputs.date }} (${{ steps.list_graphics.outputs.pred_count }} predictions, ${{ steps.list_graphics.outputs.res_count }} results)"
           to: ${{ secrets.EMAIL_RECIPIENT }}
           from: ${{ secrets.GMAIL_USERNAME }}
           html_body: file://email-body.html
@@ -200,16 +236,16 @@ jobs:
           priority: normal
       
       - name: Summary
-        if: github.event_name != 'workflow_dispatch'
         run: |
           echo "## Email Sent Successfully! 📧" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "✅ Sent ${{ steps.list_graphics.outputs.count }} graphics to: ${{ secrets.EMAIL_RECIPIENT }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📅 Date: ${{ steps.list_graphics.outputs.date }}" >> $GITHUB_STEP_SUMMARY
+          echo "📍 Run: #${{ steps.list_graphics.outputs.run_num }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Graphics Breakdown:" >> $GITHUB_STEP_SUMMARY
           echo "- 🟣 **Predictions:** ${{ steps.list_graphics.outputs.pred_count }} graphics" >> $GITHUB_STEP_SUMMARY
           echo "- 🎯 **Results:** ${{ steps.list_graphics.outputs.res_count }} graphics" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🔄 Triggered automatically after graphics generation" >> $GITHUB_STEP_SUMMARY
+          echo "🔄 Trigger: ${{ github.event_name == 'workflow_dispatch' && 'Manual (workflow_dispatch)' || 'Automatic (after graphics generation)' }}" >> $GITHUB_STEP_SUMMARY
