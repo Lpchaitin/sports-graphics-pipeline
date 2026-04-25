@@ -25,7 +25,7 @@ incoming_picks/
 
 ## CSV Format
 
-See `example_picks.csv` in the root directory for the expected format.
+See `examples/example_picks.csv` for the expected format.
 
 Required columns:
 - `away_team`, `home_team`, `away_ml`, `home_ml`, `ou_line`
@@ -45,7 +45,7 @@ This directory is monitored by `.github/workflows/generate-graphics.yml`:
 To test the workflow manually:
 
 ```bash
-cp example_picks.csv incoming_picks/test.csv
+cp examples/example_picks.csv incoming_picks/test.csv
 git add incoming_picks/test.csv
 git commit -m "Test picks"
 git push

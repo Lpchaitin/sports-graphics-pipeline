@@ -33,18 +33,26 @@ sports-graphics-pipeline/
 │   ├── font_utils.py                               # Font handling
 │   └── team_data.py                                # Team colors and data
 │
-├── convert_predictions.py                           # COMMITTED: Converts your format → graphics format
-├── process_picks.py                                 # COMMITTED: Batch process CSV → graphics
-├── generate_card.py                                 # COMMITTED: Single game CLI generator
-├── download_mlb_logos.py                            # COMMITTED: One-time logo downloader
+├── scripts/                                         # COMMITTED: Executable scripts
+│   ├── convert_predictions.py                      # Converts your format → graphics format
+│   ├── process_picks.py                            # Batch process CSV → graphics
+│   ├── generate_card.py                            # Single game CLI generator
+│   ├── generate_sample.py                          # Sample generation script
+│   ├── download_mlb_logos.py                       # One-time logo downloader
+│   └── cleanup.sh                                  # Periodic cleanup script
 │
-├── example_picks.csv                                # COMMITTED: Example file for reference
+├── docs/                                            # COMMITTED: Documentation
+│   ├── QUICKSTART.md                               # Setup guide
+│   ├── USAGE.md                                    # How to use guide
+│   ├── INTEGRATION.md                              # Integration methods
+│   ├── WORKFLOW_SETUP.md                           # Detailed workflow setup
+│   ├── EMAIL_SETUP.md                              # Email configuration
+│   └── ORGANIZATION.md                             # This file
+│
+├── examples/                                        # COMMITTED: Example files
+│   └── example_picks.csv                           # Example file for reference
+│
 ├── requirements.txt                                 # COMMITTED: Python dependencies
-│
-├── QUICKSTART.md                                    # COMMITTED: Setup guide
-├── USAGE.md                                         # COMMITTED: How to use guide
-├── INTEGRATION.md                                   # COMMITTED: Integration methods
-├── WORKFLOW_SETUP.md                                # COMMITTED: Detailed workflow setup
 ├── README.md                                        # COMMITTED: Main documentation
 │
 └── .gitignore                                       # COMMITTED: What NOT to commit

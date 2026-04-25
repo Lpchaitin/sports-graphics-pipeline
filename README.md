@@ -55,10 +55,10 @@ See **[INTEGRATION.md](INTEGRATION.md)** for all integration methods.
 
 ## 🛠️ Key Files
 
-- `convert_predictions.py` - Converts your predictions format to graphics format
-- `process_picks.py` - Batch processes CSV files into graphics
-- `generate_card.py` - Single game graphic generator (CLI)
-- `cleanup.sh` - Periodic cleanup script
+- `scripts/convert_predictions.py` - Converts your predictions format to graphics format
+- `scripts/process_picks.py` - Batch processes CSV files into graphics
+- `scripts/generate_card.py` - Single game graphic generator (CLI)
+- `scripts/cleanup.sh` - Periodic cleanup script
 
 ## 📏 Current Status
 
@@ -71,7 +71,7 @@ See **[INTEGRATION.md](INTEGRATION.md)** for all integration methods.
 
 Run periodic cleanup:
 ```bash
-./cleanup.sh
+./scripts/cleanup.sh
 ```
 
 This removes:

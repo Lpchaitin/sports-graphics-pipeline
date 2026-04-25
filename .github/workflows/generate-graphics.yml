@@ -55,7 +55,7 @@ jobs:
               echo "Converting $csv_file..."
               
               # Convert predictions to graphics format
-              python convert_predictions.py "$csv_file" --output "${csv_file%.csv}_converted.csv"
+              python scripts/convert_predictions.py "$csv_file" --output "${csv_file%.csv}_converted.csv"
               
               echo "✓ Converted $csv_file"
             fi
@@ -77,7 +77,7 @@ jobs:
                 echo "  → Detected results data, generating results graphics"
                 
                 # Generate results graphics
-                python process_picks.py "$csv_file" \
+                python scripts/process_picks.py "$csv_file" \
                   --output-dir "output/mlb/results" \
                   --label "MLB $(date +%Y) | RESULTS" \
                   --branding "ORBANALYTICS.SUBSTACK.COM" \
@@ -88,7 +88,7 @@ jobs:
                 echo "  → No results data, generating prediction graphics"
                 
                 # Generate prediction graphics
-                python process_picks.py "$csv_file" \
+                python scripts/process_picks.py "$csv_file" \
                   --output-dir "output/mlb/predictions" \
                   --label "MLB $(date +%Y) | TODAY'S PICKS" \
                   --branding "ORBANALYTICS.SUBSTACK.COM" \
