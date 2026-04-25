@@ -56,6 +56,7 @@ DIVIDER_COLOR = (35, 35, 50)   # subtle column separator
 WHITE = (255, 255, 255)
 PURPLE = (147, 51, 234)        # vibrant purple  #9333EA
 RED = (255, 60, 60)            # bright red
+GREEN = (34, 197, 94)          # vibrant green  #22C55E
 GRAY = (130, 130, 140)         # inactive cells
 DARK_GRAY = (55, 55, 65)       # inactive cell borders
 TEAM_BOX_COLOR = (255, 255, 255)   # team name box border / text
@@ -230,7 +231,7 @@ def _pick_colors(
 
     - Non-pick cells: gray border, gray text.
     - Prediction cards: pick cells get purple (indicating the prediction).
-    - Results cards: pick correct → purple, pick incorrect → red.
+    - Results cards: pick correct → green, pick incorrect → red.
     """
     if not is_pick:
         return DARK_GRAY, GRAY
@@ -240,7 +241,7 @@ def _pick_colors(
 
     # Results card
     if result == "correct":
-        return PURPLE, PURPLE
+        return GREEN, GREEN
     if result == "incorrect":
         return RED, RED
     # Pick was made but result unknown

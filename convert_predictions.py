@@ -72,6 +72,15 @@ def convert_predictions(input_file, output_file=None):
             pick_home = row.get('pick_home?', '0').strip()
             ml_pick = 'home' if pick_home == '1' else 'away'
             
+            # Determine ML result (if available)
+            pick_correct = row.get('pick_correct?', '').strip()
+            if pick_correct == '1':
+                ml_result = 'correct'
+            elif pick_correct == '0':
+                ml_result = 'incorrect'
+            else:
+                ml_result = ''  # No result yet (prediction mode)
+            
             # Convert odds (add +/- signs)
             home_ml = convert_odds(row['home odds'])
             away_ml = convert_odds(row['away odds'])
@@ -102,6 +111,8 @@ def convert_predictions(input_file, output_file=None):
                 'ou_line': ou_line,
                 'ml_pick': ml_pick,
                 'ou_pick': '',  # No O/U picks yet
+                'ml_result': ml_result,
+                'ou_result': '',  # No O/U results yet
             }
             
             converted_games.append(converted_game)
@@ -110,7 +121,8 @@ def convert_predictions(input_file, output_file=None):
     if converted_games:
         with open(output_file, 'w', encoding='utf-8', newline='') as f:
             fieldnames = ['date', 'away_team', 'home_team', 'away_ml', 
-                         'home_ml', 'ou_line', 'ml_pick', 'ou_pick']
+                         'home_ml', 'ou_line', 'ml_pick', 'ou_pick',
+                         'ml_result', 'ou_result']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(converted_games)

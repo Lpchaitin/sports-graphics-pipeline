@@ -63,18 +63,50 @@ jobs:
       
       - name: Generate graphics
         run: |
+          mkdir -p output/mlb/predictions
+          mkdir -p output/mlb/results
+          
           # Process each converted CSV file
           for csv_file in incoming_picks/*_converted.csv; do
             if [ -f "$csv_file" ]; then
               echo "Processing $csv_file..."
               
-              # Generate graphics
-              python process_picks.py "$csv_file" \
-                --output-dir "output/mlb" \
-                --label "MLB $(date +%Y) | TODAY'S PICKS" \
-                --branding "ORBANALYTICS.SUBSTACK.COM"
+              # Check if this CSV has results (ml_result column with non-empty values)
+              has_results=$(python -c "
+import csv
+import sys
+with open('$csv_file', 'r') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        if row.get('ml_result', '').strip():
+            print('true')
+            sys.exit(0)
+print('false')
+              ")
               
-              echo "✓ Generated graphics from $csv_file"
+              if [ "$has_results" = "true" ]; then
+                echo "  → Detected results data, generating results graphics"
+                
+                # Generate results graphics
+                python process_picks.py "$csv_file" \
+                  --output-dir "output/mlb/results" \
+                  --label "MLB $(date +%Y) | RESULTS" \
+                  --branding "ORBANALYTICS.SUBSTACK.COM" \
+                  --card-type "results"
+                
+                echo "  ✓ Generated results graphics from $csv_file"
+              else
+                echo "  → No results data, generating prediction graphics"
+                
+                # Generate prediction graphics
+                python process_picks.py "$csv_file" \
+                  --output-dir "output/mlb/predictions" \
+                  --label "MLB $(date +%Y) | TODAY'S PICKS" \
+                  --branding "ORBANALYTICS.SUBSTACK.COM" \
+                  --card-type "prediction"
+                
+                echo "  ✓ Generated prediction graphics from $csv_file"
+              fi
             fi
           done
       
@@ -96,13 +128,21 @@ jobs:
             fi
           done
       
-      - name: Upload graphics as artifacts
+      - name: Upload prediction graphics as artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mlb-graphics-${{ github.run_number }}
-          path: output/mlb/*.png
+          name: mlb-predictions-${{ github.run_number }}
+          path: output/mlb/predictions/*.png
           retention-days: 90
-          if-no-files-found: warn
+          if-no-files-found: ignore
+      
+      - name: Upload results graphics as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mlb-results-${{ github.run_number }}
+          path: output/mlb/results/*.png
+          retention-days: 90
+          if-no-files-found: ignore
       
       - name: Commit processed CSVs (archive only)
         run: |
@@ -128,9 +168,36 @@ jobs:
           echo "✅ Graphics generated successfully!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📥 Download Graphics:" >> $GITHUB_STEP_SUMMARY
-          echo "Scroll down to **Artifacts** section below and download **mlb-graphics-${{ github.run_number }}.zip**" >> $GITHUB_STEP_SUMMARY
+          echo "Scroll down to **Artifacts** section below:" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 📊 Files Generated:" >> $GITHUB_STEP_SUMMARY
-          ls -lh output/mlb/*.png 2>/dev/null | tail -n +2 | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY || echo "No graphics found" >> $GITHUB_STEP_SUMMARY
+          
+          # Check what was generated
+          pred_count=$(ls output/mlb/predictions/*.png 2>/dev/null | wc -l)
+          res_count=$(ls output/mlb/results/*.png 2>/dev/null | wc -l)
+          
+          if [ "$pred_count" -gt 0 ]; then
+            echo "- **mlb-predictions-${{ github.run_number }}.zip** — $pred_count prediction graphics" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "$res_count" -gt 0 ]; then
+            echo "- **mlb-results-${{ github.run_number }}.zip** — $res_count results graphics" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Predictions Generated:" >> $GITHUB_STEP_SUMMARY
+          if [ "$pred_count" -gt 0 ]; then
+            ls -lh output/mlb/predictions/*.png 2>/dev/null | tail -n +2 | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No prediction graphics generated" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🎯 Results Generated:" >> $GITHUB_STEP_SUMMARY
+          if [ "$res_count" -gt 0 ]; then
+            ls -lh output/mlb/results/*.png 2>/dev/null | tail -n +2 | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No results graphics generated" >> $GITHUB_STEP_SUMMARY
+          fi
+          
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "💡 Graphics are available as artifacts for 90 days (not committed to repo)" >> $GITHUB_STEP_SUMMARY
