@@ -72,19 +72,8 @@ jobs:
               echo "Processing $csv_file..."
               
               # Check if this CSV has results (ml_result column with non-empty values)
-              has_results=$(python -c "
-import csv
-import sys
-with open('$csv_file', 'r') as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        if row.get('ml_result', '').strip():
-            print('true')
-            sys.exit(0)
-print('false')
-              ")
-              
-              if [ "$has_results" = "true" ]; then
+              # Use a simple grep to check for 'correct' or 'incorrect' in the file
+              if grep -q ",correct\|,incorrect" "$csv_file" 2>/dev/null; then
                 echo "  → Detected results data, generating results graphics"
                 
                 # Generate results graphics
