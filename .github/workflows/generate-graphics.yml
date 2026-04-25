@@ -40,8 +40,12 @@ jobs:
             echo "No CSV files found in incoming_picks/"
             exit 1
           fi
-          echo "Found CSV files: $csv_files"
-          echo "csv_files=$csv_files" >> $GITHUB_OUTPUT
+          echo "Found CSV files:"
+          echo "$csv_files"
+          
+          # Count files for output
+          csv_count=$(echo "$csv_files" | wc -w)
+          echo "csv_count=$csv_count" >> $GITHUB_OUTPUT
       
       - name: Convert predictions format
         run: |

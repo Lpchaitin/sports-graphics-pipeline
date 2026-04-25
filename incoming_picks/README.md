@@ -21,6 +21,7 @@ incoming_picks/
 **Filename Format:** `YYYYMMDD_predictions.csv`
 - Date comes from the original predictions filename (e.g., `predictions_2026-04-19.csv` → `20260419_predictions.csv`)
 - Not the transfer date, but the predictions date
+- **Important:** Do not include timestamps in the filename (e.g., `20260420_151810_predictions.csv` will cause errors)
 
 ## CSV Format
 
