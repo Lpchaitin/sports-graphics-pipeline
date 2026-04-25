@@ -63,50 +63,64 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Download artifact from graphics workflow
+      - name: Download prediction graphics
         uses: actions/download-artifact@v4
         with:
-          name: ${{ github.event_name == 'workflow_dispatch' && steps.find_artifact.outputs.artifact_name || format('mlb-graphics-{0}', github.event.workflow_run.run_number) }}
-          path: graphics-to-email
-          run-id: ${{ github.event_name == 'workflow_dispatch' && steps.find_artifact.outputs.run_id || github.event.workflow_run.id }}
+          name: ${{ format('mlb-predictions-{0}', github.event.workflow_run.run_number) }}
+          path: graphics-to-email/predictions
+          run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+      
+      - name: Download results graphics
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ format('mlb-results-{0}', github.event.workflow_run.run_number) }}
+          path: graphics-to-email/results
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
       
       - name: Filter graphics by date (manual trigger only)
         if: github.event_name == 'workflow_dispatch'
         run: |
           DATE_INPUT="${{ inputs.date }}"
-          echo "Filtering graphics for date: $DATE_INPUT"
-          
-          cd graphics-to-email
-          # Keep only files that start with the requested date
-          find . -name "*.png" ! -name "${DATE_INPUT}_*.png" -delete
-          
-          # Check if any files remain
-          COUNT=$(ls *.png 2>/dev/null | wc -l)
-          if [ "$COUNT" -eq 0 ]; then
-            echo "Error: No graphics found for date $DATE_INPUT"
-            exit 1
-          fi
-          
-          echo "Found $COUNT graphics for requested date"
-          ls -lh
+          echo "Manual trigger not yet updated for new artifact structure"
+          echo "TODO: Update manual trigger logic"
+          exit 1
       
       - name: List downloaded graphics
+        if: github.event_name != 'workflow_dispatch'
         id: list_graphics
         run: |
           echo "Graphics downloaded:"
-          ls -lh graphics-to-email/
           
-          # Count graphics
-          COUNT=$(ls graphics-to-email/*.png 2>/dev/null | wc -l)
-          echo "count=$COUNT" >> $GITHUB_OUTPUT
+          # Count predictions
+          PRED_COUNT=$(ls graphics-to-email/predictions/*.png 2>/dev/null | wc -l || echo 0)
+          echo "Predictions: $PRED_COUNT"
+          ls -lh graphics-to-email/predictions/ 2>/dev/null || echo "No predictions"
+          
+          # Count results
+          RES_COUNT=$(ls graphics-to-email/results/*.png 2>/dev/null | wc -l || echo 0)
+          echo "Results: $RES_COUNT"
+          ls -lh graphics-to-email/results/ 2>/dev/null || echo "No results"
+          
+          TOTAL=$((PRED_COUNT + RES_COUNT))
+          echo "count=$TOTAL" >> $GITHUB_OUTPUT
+          echo "pred_count=$PRED_COUNT" >> $GITHUB_OUTPUT
+          echo "res_count=$RES_COUNT" >> $GITHUB_OUTPUT
           
           # Get date from first filename
-          FIRST_FILE=$(ls graphics-to-email/*.png 2>/dev/null | head -1 | xargs basename)
-          DATE_STR=$(echo $FIRST_FILE | cut -d'_' -f1)
-          echo "date=$DATE_STR" >> $GITHUB_OUTPUT
+          FIRST_FILE=$(find graphics-to-email -name "*.png" 2>/dev/null | head -1 | xargs basename)
+          if [ -n "$FIRST_FILE" ]; then
+            DATE_STR=$(echo $FIRST_FILE | cut -d'_' -f1)
+            echo "date=$DATE_STR" >> $GITHUB_OUTPUT
+          else
+            echo "date=unknown" >> $GITHUB_OUTPUT
+          fi
       
       - name: Create email body
+        if: github.event_name != 'workflow_dispatch'
         run: |
           cat > email-body.html << 'EOF'
           <!DOCTYPE html>
@@ -125,56 +139,68 @@ jobs:
               <h1>🎨 MLB Graphics Ready!</h1>
             </div>
             <div class="content">
-              <h2>Today's Picks Graphics Generated</h2>
-              <p>Your MLB prediction graphics for <strong>${{ steps.list_graphics.outputs.date }}</strong> have been generated successfully!</p>
+              <h2>Graphics Generated Successfully</h2>
+              <p>Your MLB graphics for <strong>${{ steps.list_graphics.outputs.date }}</strong> have been generated!</p>
               
               <div class="stats">
                 <strong>📊 Summary:</strong><br>
-                ✅ Graphics Generated: ${{ steps.list_graphics.outputs.count }}<br>
-                📅 Date: ${{ steps.list_graphics.outputs.date }}<br>
-                🎯 Only games with confident picks included<br>
+                <strong>🟣 Predictions:</strong> ${{ steps.list_graphics.outputs.pred_count }} graphics (today's picks)<br>
+                <strong>🎯 Results:</strong> ${{ steps.list_graphics.outputs.res_count }} graphics (yesterday's outcomes)<br>
+                <strong>📈 Total:</strong> ${{ steps.list_graphics.outputs.count }} graphics<br>
               </div>
               
-              <p><strong>Attached Files:</strong></p>
+              <p><strong>🟣 Prediction Graphics (Purple):</strong></p>
               <ul>
-                <li>All PNG graphics (1080×1350, Instagram-ready)</li>
-                <li>Team colors and white-outlined logos included</li>
-                <li>Moneyline picks highlighted in green</li>
+                <li>Today's picks highlighted in purple</li>
+                <li>Ready to share before games start</li>
+              </ul>
+              
+              <p><strong>🎯 Results Graphics (Green/Red):</strong></p>
+              <ul>
+                <li>✅ Correct picks highlighted in green</li>
+                <li>❌ Incorrect picks highlighted in red</li>
+                <li>Share as results/recap after games complete</li>
+              </ul>
+              
+              <p><strong>All Graphics Include:</strong></p>
+              <ul>
+                <li>1080×1350 format (Instagram-ready 4:5 ratio)</li>
+                <li>Team colors and white-outlined logos</li>
+                <li>Moneyline and O/U data</li>
               </ul>
               
               <p><strong>Next Steps:</strong></p>
               <ol>
                 <li>Download the attached PNG files</li>
-                <li>Review the picks and graphics</li>
-                <li>Post to social media (Instagram, Twitter, etc.)</li>
-                <li>Share on Substack or your website</li>
+                <li>Post predictions before games start</li>
+                <li>Post results after games complete</li>
+                <li>Share on Instagram, Twitter, Substack, etc.</li>
               </ol>
-              
-              <p>Graphics are automatically generated from your model's predictions where <code>pick_made? = 1</code>.</p>
             </div>
             <div class="footer">
               <p>Automated by MLB Graphics Pipeline | Generated via GitHub Actions</p>
-              <p>Trigger: ${{ github.event_name == 'workflow_dispatch' && 'Manual' || 'Automatic' }}</p>
             </div>
           </body>
           </html>
           EOF
       
       - name: Send email with graphics
+        if: github.event_name != 'workflow_dispatch'
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
           server_port: 587
           username: ${{ secrets.GMAIL_USERNAME }}
           password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          subject: "${{ github.event_name == 'workflow_dispatch' && '[MANUAL] ' || '' }}MLB Graphics Ready - ${{ steps.list_graphics.outputs.date }} (${{ steps.list_graphics.outputs.count }} games)"
+          subject: "MLB Graphics Ready - ${{ steps.list_graphics.outputs.date }} (${{ steps.list_graphics.outputs.pred_count }} predictions, ${{ steps.list_graphics.outputs.res_count }} results)"
           to: ${{ secrets.EMAIL_RECIPIENT }}
           from: ${{ secrets.GMAIL_USERNAME }}
           html_body: file://email-body.html
-          attachments: graphics-to-email/*.png
+          attachments: graphics-to-email/**/*.png
           priority: normal
       
       - name: Summary
+        if: github.event_name != 'workflow_dispatch'
         run: |
           echo "## Email Sent Successfully! 📧" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -182,4 +208,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "📅 Date: ${{ steps.list_graphics.outputs.date }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🔄 Trigger: ${{ github.event_name == 'workflow_dispatch' && 'Manual (workflow_dispatch)' || 'Automatic (after graphics generation)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Graphics Breakdown:" >> $GITHUB_STEP_SUMMARY
+          echo "- 🟣 **Predictions:** ${{ steps.list_graphics.outputs.pred_count }} graphics" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 **Results:** ${{ steps.list_graphics.outputs.res_count }} graphics" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🔄 Triggered automatically after graphics generation" >> $GITHUB_STEP_SUMMARY
