@@ -176,11 +176,21 @@ jobs:
             | xargs -I{} basename {} \
             | jq -R . | jq -s . || echo "[]")
 
+          # Read existing dates array from manifest, append today if not already present
+          EXISTING_DATES="[]"
+          if [ -f orb-analytics/manifest.json ]; then
+            EXISTING_DATES=$(jq '.mlb.dates // []' orb-analytics/manifest.json)
+          fi
+
+          # Add today's date if not already in the array
+          UPDATED_DATES=$(echo "$EXISTING_DATES" | jq --arg d "$TODAY" '. + [$d] | unique | sort')
+
           cat > orb-analytics/manifest.json << EOF
           {
             "today": "$TODAY",
             "yesterday": "$YESTERDAY",
             "mlb": {
+              "dates": $UPDATED_DATES,
               "graphics_today": $PRED_FILES,
               "graphics_yesterday": $RES_FILES
             },
