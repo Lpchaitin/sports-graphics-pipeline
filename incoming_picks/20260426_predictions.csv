@@ -15,3 +15,4 @@ date,home team,away team,home odds,away odds,fav at home?,xgb_home_prob,xgb_away
 4/26/2026,LAD,CHC,-115.0,114.0,1,0.5138,0.4862,LAD,1,1,0,,9.5,104.0,-110.0
 4/26/2026,NYM,COL,-208.0,201.0,1,0.535,0.465,NYM,1,1,0,,1.5,-109.0,104.0
 4/26/2026,KC,LAA,-110.0,107.0,1,0.5008,0.4992,KC,1,1,0,,8.5,-107.0,102.0
+# trigger
