@@ -208,7 +208,8 @@ jobs:
           LATEST_CSV=$(ls -t incoming_picks/processed/*.csv 2>/dev/null | head -1)
 
           if [ -n "$LATEST_CSV" ]; then
-            cp "$LATEST_CSV" "orb-analytics/data/mlb_predictions_${TODAY}.csv"
+            mkdir -p orb-analytics/data/mlb
+            cp "$LATEST_CSV" "orb-analytics/data/mlb/mlb_predictions_${TODAY}.csv"
             echo "✓ Copied CSV → mlb_predictions_${TODAY}.csv"
           else
             echo "No processed CSV found to copy"
