@@ -3,6 +3,12 @@
 Generate a sample MLB game graphic - Yankees @ Red Sox
 """
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path to import from src/
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from src.card_generator import CardData, generate_card
 
 # Create a hypothetical Yankees @ Red Sox game
