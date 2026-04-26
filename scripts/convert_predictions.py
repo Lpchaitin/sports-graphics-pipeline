@@ -74,10 +74,17 @@ def convert_predictions(input_file, output_file=None):
             
             # Determine ML result (if available)
             pick_correct = row.get('pick_correct?', '').strip()
-            if pick_correct == '1':
-                ml_result = 'correct'
-            elif pick_correct == '0':
-                ml_result = 'incorrect'
+            if pick_correct:
+                try:
+                    # Handle both '1'/'0' and '1.0'/'0.0' formats
+                    if float(pick_correct) == 1.0:
+                        ml_result = 'correct'
+                    elif float(pick_correct) == 0.0:
+                        ml_result = 'incorrect'
+                    else:
+                        ml_result = ''  # No result yet
+                except (ValueError, TypeError):
+                    ml_result = ''  # No result yet (prediction mode)
             else:
                 ml_result = ''  # No result yet (prediction mode)
             
