@@ -63,17 +63,17 @@ def convert_predictions(input_file, output_file=None):
         
         for row in reader:
             # Only process games where pick_made? = 1
-            pick_made = row.get('pick_made?', '0').strip()
+            pick_made = (row.get('pick_made?') or '0').strip()
             if pick_made != '1':
                 skipped_count += 1
                 continue
             
             # Determine ML pick (home or away)
-            pick_home = row.get('pick_home?', '0').strip()
+            pick_home = (row.get('pick_home?') or '0').strip()
             ml_pick = 'home' if pick_home == '1' else 'away'
             
             # Determine ML result (if available)
-            pick_correct = row.get('pick_correct?', '').strip()
+            pick_correct = (row.get('pick_correct?') or '').strip()
             if pick_correct:
                 try:
                     # Handle both '1'/'0' and '1.0'/'0.0' formats
@@ -93,14 +93,14 @@ def convert_predictions(input_file, output_file=None):
             away_ml = convert_odds(row['away odds'])
             
             # Get team abbreviations
-            home_team = row['home team'].strip().upper()
-            away_team = row['away team'].strip().upper()
+            home_team = (row['home team'] or '').strip().upper()
+            away_team = (row['away team'] or '').strip().upper()
             
             # Get O/U line
-            ou_line = row['over close'].strip()
+            ou_line = (row['over close'] or '').strip()
             
             # Format date (convert from M/D/YYYY to YYYY-MM-DD if needed)
-            date_str = row['date'].strip()
+            date_str = (row['date'] or '').strip()
             if '/' in date_str:
                 # Convert 4/19/2026 to 2026-04-19
                 parts = date_str.split('/')
