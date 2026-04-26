@@ -175,7 +175,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 📊 Predictions Generated:" >> $GITHUB_STEP_SUMMARY
           if [ "$pred_count" -gt 0 ]; then
-            ls -lh output/mlb/predictions/*.png 2>/dev/null | tail -n +2 | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY
+            for file in output/mlb/predictions/*.png; do
+              if [ -f "$file" ]; then
+                size=$(du -h "$file" | cut -f1)
+                echo "- $file ($size)" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
           else
             echo "No prediction graphics generated" >> $GITHUB_STEP_SUMMARY
           fi
@@ -183,7 +188,12 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### 🎯 Results Generated:" >> $GITHUB_STEP_SUMMARY
           if [ "$res_count" -gt 0 ]; then
-            ls -lh output/mlb/results/*.png 2>/dev/null | tail -n +2 | awk '{print "- " $9 " (" $5 ")"}' >> $GITHUB_STEP_SUMMARY
+            for file in output/mlb/results/*.png; do
+              if [ -f "$file" ]; then
+                size=$(du -h "$file" | cut -f1)
+                echo "- $file ($size)" >> $GITHUB_STEP_SUMMARY
+              fi
+            done
           else
             echo "No results graphics generated" >> $GITHUB_STEP_SUMMARY
           fi
