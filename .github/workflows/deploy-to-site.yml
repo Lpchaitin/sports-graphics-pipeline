@@ -1,0 +1,150 @@
+name: Deploy to Orb Analytics Site
+
+on:
+  workflow_run:
+    workflows: ["Generate MLB Graphics"]
+    types:
+      - completed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout pipeline repo
+        uses: actions/checkout@v4
+
+      # ── Download the graphics artifacts from the completed run ──
+      - name: Download prediction graphics
+        uses: actions/download-artifact@v4
+        with:
+          name: mlb-predictions-${{ github.event.workflow_run.run_number }}
+          path: site-output/graphics/mlb/predictions
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Download results graphics
+        uses: actions/download-artifact@v4
+        with:
+          name: mlb-results-${{ github.event.workflow_run.run_number }}
+          path: site-output/graphics/mlb/results
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      # ── Checkout the orb-analytics website repo ──
+      - name: Checkout orb-analytics site
+        uses: actions/checkout@v4
+        with:
+          repository: Lpchaitin/orb-analytics
+          token: ${{ secrets.ORB_DEPLOY_TOKEN }}
+          path: orb-analytics
+
+      # ── Copy graphics into the right folders ──
+      - name: Copy graphics to site repo
+        run: |
+          mkdir -p orb-analytics/graphics/mlb
+
+          # Copy prediction PNGs
+          if ls site-output/graphics/mlb/predictions/*.png 2>/dev/null; then
+            cp site-output/graphics/mlb/predictions/*.png orb-analytics/graphics/mlb/
+            echo "✓ Copied prediction graphics"
+          else
+            echo "No prediction graphics found"
+          fi
+
+          # Copy results PNGs
+          if ls site-output/graphics/mlb/results/*.png 2>/dev/null; then
+            cp site-output/graphics/mlb/results/*.png orb-analytics/graphics/mlb/
+            echo "✓ Copied results graphics"
+          else
+            echo "No results graphics found"
+          fi
+
+      # ── Build manifest.json ──
+      - name: Generate manifest.json
+        run: |
+          TODAY=$(date +%Y-%m-%d)
+          YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
+
+          TODAY_SHORT=$(date +%Y%m%d)
+          YESTERDAY_SHORT=$(date -d "yesterday" +%Y%m%d)
+
+          # Collect today's prediction filenames
+          PRED_FILES=$(ls site-output/graphics/mlb/predictions/*.png 2>/dev/null \
+            | xargs -I{} basename {} \
+            | jq -R . | jq -s . || echo "[]")
+
+          # Collect yesterday's results filenames
+          RES_FILES=$(ls site-output/graphics/mlb/results/*.png 2>/dev/null \
+            | xargs -I{} basename {} \
+            | jq -R . | jq -s . || echo "[]")
+
+          # Write manifest.json
+          cat > orb-analytics/manifest.json << EOF
+          {
+            "today": "$TODAY",
+            "yesterday": "$YESTERDAY",
+            "mlb": {
+              "graphics_today": $PRED_FILES,
+              "graphics_yesterday": $RES_FILES
+            },
+            "nba": {
+              "graphics_today": [],
+              "graphics_yesterday": []
+            },
+            "nfl": {
+              "graphics_today": [],
+              "graphics_yesterday": []
+            }
+          }
+          EOF
+
+          echo "✓ manifest.json generated"
+          cat orb-analytics/manifest.json
+
+      # ── Also copy the CSV to orb-analytics/data/ ──
+      - name: Copy CSV predictions to site repo
+        run: |
+          mkdir -p orb-analytics/data
+          TODAY=$(date +%Y-%m-%d)
+
+          if ls incoming_picks/processed/*predictions*.csv 2>/dev/null | head -1; then
+            LATEST_CSV=$(ls -t incoming_picks/processed/*.csv 2>/dev/null | head -1)
+            cp "$LATEST_CSV" "orb-analytics/data/mlb_predictions_${TODAY}.csv"
+            echo "✓ Copied CSV: mlb_predictions_${TODAY}.csv"
+          else
+            echo "No CSV found to copy"
+          fi
+
+      # ── Commit and push everything to orb-analytics ──
+      - name: Commit and push to orb-analytics
+        run: |
+          cd orb-analytics
+          git config user.name "Orb Pipeline Bot"
+          git config user.email "actions@github.com"
+
+          git add graphics/mlb/ data/ manifest.json
+
+          if git diff --staged --quiet; then
+            echo "Nothing new to commit"
+          else
+            TODAY=$(date +%Y-%m-%d)
+            git commit -m "Auto-deploy: MLB graphics + predictions for $TODAY"
+            git push
+            echo "✓ Pushed to orb-analytics"
+          fi
+
+      - name: Summary
+        run: |
+          echo "## Site Deployed! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          PRED=$(ls site-output/graphics/mlb/predictions/*.png 2>/dev/null | wc -l || echo 0)
+          RES=$(ls site-output/graphics/mlb/results/*.png 2>/dev/null | wc -l || echo 0)
+          echo "- 🟣 Prediction graphics pushed: $PRED" >> $GITHUB_STEP_SUMMARY
+          echo "- 🎯 Results graphics pushed: $RES" >> $GITHUB_STEP_SUMMARY
+          echo "- 📋 manifest.json updated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 Live at: https://lpchaitin.github.io/orb-analytics/" >> $GITHUB_STEP_SUMMARY
