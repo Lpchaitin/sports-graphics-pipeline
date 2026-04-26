@@ -5,18 +5,96 @@ on:
     workflows: ["Generate MLB Graphics"]
     types:
       - completed
+  workflow_dispatch:
+    inputs:
+      run_number:
+        description: 'Workflow run number to deploy (leave blank for most recent)'
+        required: false
+        type: string
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - name: Checkout pipeline repo
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # ── Download the graphics artifacts from the completed run ──
-      - name: Download prediction graphics
+      # ── Find run ID for manual trigger ──
+      - name: Find workflow run for manual trigger
+        if: github.event_name == 'workflow_dispatch'
+        id: find_run
+        run: |
+          RUN_INPUT="${{ inputs.run_number }}"
+
+          if [ -z "$RUN_INPUT" ]; then
+            echo "No run number provided, finding most recent successful run..."
+
+            RUN_DATA=$(gh run list --workflow="Generate MLB Graphics" \
+              --json databaseId,number,conclusion,status \
+              --limit 10 | \
+              jq -r '.[] | select(.conclusion=="success") | "\(.databaseId),\(.number)"' | \
+              head -1)
+
+            if [ -z "$RUN_DATA" ]; then
+              echo "Error: No successful workflow runs found"
+              exit 1
+            fi
+
+            RUN_ID=$(echo "$RUN_DATA" | cut -d',' -f1)
+            RUN_NUMBER=$(echo "$RUN_DATA" | cut -d',' -f2)
+            echo "Found most recent successful run: #$RUN_NUMBER (ID: $RUN_ID)"
+          else
+            echo "Using specified run number: $RUN_INPUT"
+
+            RUN_DATA=$(gh run list --workflow="Generate MLB Graphics" \
+              --json databaseId,number,conclusion \
+              --limit 100 | \
+              jq -r ".[] | select(.number==$RUN_INPUT) | \"\(.databaseId),\(.number)\"")
+
+            if [ -z "$RUN_DATA" ]; then
+              echo "Error: No workflow run found with number $RUN_INPUT"
+              exit 1
+            fi
+
+            RUN_ID=$(echo "$RUN_DATA" | cut -d',' -f1)
+            RUN_NUMBER=$(echo "$RUN_DATA" | cut -d',' -f2)
+            echo "Found run #$RUN_NUMBER (ID: $RUN_ID)"
+          fi
+
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "run_number=$RUN_NUMBER" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ── Download prediction graphics (manual trigger) ──
+      - name: Download prediction graphics (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v4
+        with:
+          name: mlb-predictions-${{ steps.find_run.outputs.run_number }}
+          path: site-output/graphics/mlb/predictions
+          run-id: ${{ steps.find_run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      # ── Download results graphics (manual trigger) ──
+      - name: Download results graphics (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v4
+        with:
+          name: mlb-results-${{ steps.find_run.outputs.run_number }}
+          path: site-output/graphics/mlb/results
+          run-id: ${{ steps.find_run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      # ── Download prediction graphics (automatic trigger) ──
+      - name: Download prediction graphics (automatic)
+        if: github.event_name != 'workflow_dispatch'
         uses: actions/download-artifact@v4
         with:
           name: mlb-predictions-${{ github.event.workflow_run.run_number }}
@@ -25,7 +103,9 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      - name: Download results graphics
+      # ── Download results graphics (automatic trigger) ──
+      - name: Download results graphics (automatic)
+        if: github.event_name != 'workflow_dispatch'
         uses: actions/download-artifact@v4
         with:
           name: mlb-results-${{ github.event.workflow_run.run_number }}
@@ -33,6 +113,26 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
+
+      # ── Verify graphics were downloaded ──
+      - name: Verify downloads
+        id: verify
+        run: |
+          PRED_COUNT=$(ls site-output/graphics/mlb/predictions/*.png 2>/dev/null | wc -l || echo 0)
+          RES_COUNT=$(ls site-output/graphics/mlb/results/*.png 2>/dev/null | wc -l || echo 0)
+          TOTAL=$((PRED_COUNT + RES_COUNT))
+
+          echo "pred_count=$PRED_COUNT" >> $GITHUB_OUTPUT
+          echo "res_count=$RES_COUNT"   >> $GITHUB_OUTPUT
+          echo "total=$TOTAL"           >> $GITHUB_OUTPUT
+
+          echo "Prediction graphics: $PRED_COUNT"
+          echo "Results graphics:    $RES_COUNT"
+          echo "Total:               $TOTAL"
+
+          if [ "$TOTAL" -eq 0 ]; then
+            echo "⚠️ Warning: No graphics found. Continuing anyway to update manifest."
+          fi
 
       # ── Checkout the orb-analytics website repo ──
       - name: Checkout orb-analytics site
@@ -42,25 +142,23 @@ jobs:
           token: ${{ secrets.ORB_DEPLOY_TOKEN }}
           path: orb-analytics
 
-      # ── Copy graphics into the right folders ──
+      # ── Copy graphics into the correct folders ──
       - name: Copy graphics to site repo
         run: |
           mkdir -p orb-analytics/graphics/mlb
 
-          # Copy prediction PNGs
           if ls site-output/graphics/mlb/predictions/*.png 2>/dev/null; then
             cp site-output/graphics/mlb/predictions/*.png orb-analytics/graphics/mlb/
-            echo "✓ Copied prediction graphics"
+            echo "✓ Copied ${{ steps.verify.outputs.pred_count }} prediction graphics"
           else
-            echo "No prediction graphics found"
+            echo "No prediction graphics to copy"
           fi
 
-          # Copy results PNGs
           if ls site-output/graphics/mlb/results/*.png 2>/dev/null; then
             cp site-output/graphics/mlb/results/*.png orb-analytics/graphics/mlb/
-            echo "✓ Copied results graphics"
+            echo "✓ Copied ${{ steps.verify.outputs.res_count }} results graphics"
           else
-            echo "No results graphics found"
+            echo "No results graphics to copy"
           fi
 
       # ── Build manifest.json ──
@@ -69,20 +167,15 @@ jobs:
           TODAY=$(date +%Y-%m-%d)
           YESTERDAY=$(date -d "yesterday" +%Y-%m-%d)
 
-          TODAY_SHORT=$(date +%Y%m%d)
-          YESTERDAY_SHORT=$(date -d "yesterday" +%Y%m%d)
-
-          # Collect today's prediction filenames
+          # Build JSON arrays of filenames
           PRED_FILES=$(ls site-output/graphics/mlb/predictions/*.png 2>/dev/null \
             | xargs -I{} basename {} \
             | jq -R . | jq -s . || echo "[]")
 
-          # Collect yesterday's results filenames
           RES_FILES=$(ls site-output/graphics/mlb/results/*.png 2>/dev/null \
             | xargs -I{} basename {} \
             | jq -R . | jq -s . || echo "[]")
 
-          # Write manifest.json
           cat > orb-analytics/manifest.json << EOF
           {
             "today": "$TODAY",
@@ -102,24 +195,26 @@ jobs:
           }
           EOF
 
-          echo "✓ manifest.json generated"
+          echo "✓ manifest.json generated:"
           cat orb-analytics/manifest.json
 
-      # ── Also copy the CSV to orb-analytics/data/ ──
+      # ── Copy the CSV predictions file ──
       - name: Copy CSV predictions to site repo
         run: |
           mkdir -p orb-analytics/data
           TODAY=$(date +%Y-%m-%d)
 
-          if ls incoming_picks/processed/*predictions*.csv 2>/dev/null | head -1; then
-            LATEST_CSV=$(ls -t incoming_picks/processed/*.csv 2>/dev/null | head -1)
+          # Find the most recently archived CSV
+          LATEST_CSV=$(ls -t incoming_picks/processed/*.csv 2>/dev/null | head -1)
+
+          if [ -n "$LATEST_CSV" ]; then
             cp "$LATEST_CSV" "orb-analytics/data/mlb_predictions_${TODAY}.csv"
-            echo "✓ Copied CSV: mlb_predictions_${TODAY}.csv"
+            echo "✓ Copied CSV → mlb_predictions_${TODAY}.csv"
           else
-            echo "No CSV found to copy"
+            echo "No processed CSV found to copy"
           fi
 
-      # ── Commit and push everything to orb-analytics ──
+      # ── Commit and push to orb-analytics ──
       - name: Commit and push to orb-analytics
         run: |
           cd orb-analytics
@@ -129,22 +224,25 @@ jobs:
           git add graphics/mlb/ data/ manifest.json
 
           if git diff --staged --quiet; then
-            echo "Nothing new to commit"
+            echo "Nothing new to commit — site already up to date"
           else
             TODAY=$(date +%Y-%m-%d)
             git commit -m "Auto-deploy: MLB graphics + predictions for $TODAY"
             git push
-            echo "✓ Pushed to orb-analytics"
+            echo "✓ Pushed to orb-analytics successfully"
           fi
 
+      # ── Summary ──
       - name: Summary
         run: |
           echo "## Site Deployed! 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          PRED=$(ls site-output/graphics/mlb/predictions/*.png 2>/dev/null | wc -l || echo 0)
-          RES=$(ls site-output/graphics/mlb/results/*.png 2>/dev/null | wc -l || echo 0)
-          echo "- 🟣 Prediction graphics pushed: $PRED" >> $GITHUB_STEP_SUMMARY
-          echo "- 🎯 Results graphics pushed: $RES" >> $GITHUB_STEP_SUMMARY
-          echo "- 📋 manifest.json updated" >> $GITHUB_STEP_SUMMARY
+          echo "| | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🟣 Prediction graphics | ${{ steps.verify.outputs.pred_count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🎯 Results graphics | ${{ steps.verify.outputs.res_count }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 📋 manifest.json | Updated |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "🌐 Live at: https://lpchaitin.github.io/orb-analytics/" >> $GITHUB_STEP_SUMMARY
+          echo "🔄 Trigger: ${{ github.event_name == 'workflow_dispatch' && 'Manual' || 'Automatic (after Generate MLB Graphics)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "🌐 **Live at:** https://lpchaitin.github.io/orb-analytics/" >> $GITHUB_STEP_SUMMARY
